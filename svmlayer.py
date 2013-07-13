@@ -20,7 +20,6 @@ class SVMLayer(Layer):
     def __init__(self, shape, C, params=None, dropout=None, **kwargs):
         super(SVMLayer, self).__init__(shape=shape, activ=idnty, params=params, dropout=dropout)
         self.C = C
-        print self.C
 
     def __repr__(self):
         if self.score is None:

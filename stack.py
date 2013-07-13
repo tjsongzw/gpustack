@@ -52,26 +52,43 @@ class Stack(list):
         else:
             print("You may have a problem: _score_ is NONE")
             self._score = None
+        self.train_data = (None if not schedule.get("train")
+                           else [schedule["train"][0], schedule["train"][1]])
+        self.valid_data = (None if not schedule.get("valid")
+                           else [schedule["valid"][0], schedule["valid"][1]])
 
     def __repr__(self):
         rep = "|".join([str(l) for l in self])
         return rep
 
     def pretrain(self, schedule):
-        train = [schedule["train"][0], schedule["train"][1]]
-        valid = None if not schedule.get("valid") else [schedule["valid"][0], schedule["valid"][1]]
+        train = self.train_data
+        valid = self.valid_data
+        assert (valid is not None) == ("valid" in schedule["eval"]), (
+            "Confusion about validation set!")
 
-        assert (valid is not None) == ("valid" in schedule["eval"]), "Confusion about validation set!"
+        # start the pretrain from a certain layer
+        # be careful! default starting from layer index 0!
+        if "pretrain_from" in schedule:
+            assert (not (schedule["pretrain_from"] and not schedule["reload"])), (
+                "Confusion about pretrain_from and reload! No RELOAD and NOT pretrain from First layer")
+            if schedule["pretrain_from"] >= len(self.stack):
+                pp = {"msg": "NO PRETRAINING of whole stack, RELOAD some PARAMS!?"}
+                munk.taggify(self.logging, "pretty").send(pp)
+                return None
+        else:
+            schedule.update({"pretrain_from": 0})
 
-        for i, (layer, sched) in enumerate(izip(self, self.stack)):
+        for l, (layer, sched) in enumerate(
+                izip(self[schedule["pretrain_from"]:],
+                     self.stack[schedule["pretrain_from"]:])):
+            i = l + schedule["pretrain_from"]
             pt_params = layer.pt_init(**sched)
-            
             opt_schedule = sched["opt"]
-            
-            pp = {"layer":i, "type":str(layer)}
+            pp = {"layer": i, "type": str(layer)}
             munk.taggify(self.logging, "pretty").send(pp)
             log = munk.add_keyvalue(self.logging, "layer", i)
-            
+
             epochs = opt_schedule["epochs"]
             if epochs > 0:
                 opt_schedule["f"] = layer.pt_score
@@ -86,7 +103,7 @@ class Stack(list):
                             info[e] = evals[e](pt_params)
                         info = replace_gnumpy_data(info)
                         log.send(info)
-                        
+
                     if (j+1) == epochs:
                         break
             else:
@@ -109,8 +126,10 @@ class Stack(list):
                 train[0] = self.next_hdf5(layer, train[0], "train", nxt, chunk=512)
 
     def train(self, schedule):
-        train = [schedule["train"][0], schedule["train"][1]]
-        valid = None if not schedule.get("valid") else [schedule["valid"][0], schedule["valid"][1]]
+        self.train_data = [schedule["train"][0], schedule["train"][1]]
+        train = self.train_data
+        valid = (None if not schedule.get("valid")
+                 else [schedule["valid"][0], schedule["valid"][1]])
 
         assert (valid is not None) == ("valid" in schedule["eval"]), "Confusion about validation set!"
 
@@ -149,7 +168,7 @@ class Stack(list):
 
                 if i+1 == epochs:
                     break
-                
+
                 if (i+1) % peek_iv == 0:
                     for p in peeks:
                         prediction, inputs = peeks[p](self.params)
@@ -214,17 +233,83 @@ class Stack(list):
             data = layer._fward(data)
         return data
 
-    def reload(self, depot, folder, tag):
+    def reload_stack(self, depot, folder, tag, schedule):
         """
-        reload schedule and parameters from depot/folder/tag.params
-        depot, abs path
+        reload schedule and parameters from depot/folder/tag.params.
+        depot, abs path.
         """
         from utils import load_params
         from os.path import join
         from gnumpy import as_garray
-        file_prefix = join(depot, folder, tag)
-        params = load_params(file_prefix + ".params")
+        fname = join(depot, folder, tag + ".params")
+        params = load_params(fname)
         params_stack = params['Stack']['params']
         self.params = as_garray(params_stack)
-        for layer, (c1, c2) in izip(self, izip(self.cuts[:-1], self.cuts[1:])):
+        for (layer, sched), (c1, c2) in izip(
+                izip(self, self.stack), izip(self.cuts[:-1], self.cuts[1:])):
+            layer.pt_init(**sched)
             layer.p = self.params[c1:c2]
+        pp = {"msg": "RELOAD PARAMS from {}".format(fname)}
+        munk.taggify(self.logging, "pretty").send(pp)
+
+    def reload_layers(self, schedule):
+        """
+        reload schedule and parameters from depot/folder/tag.params.
+        depot, abs path.
+        only load 'pretraining' parameters through _layers_ many layers.
+        """
+        from utils import load_params, load_sched
+        from os.path import join
+        from gnumpy import as_garray
+
+        depot = schedule['config_reload']['depot']
+        folder = schedule['config_reload']['folder']
+        tag = schedule['config_reload']['tag']
+        reload_schedule = load_sched(depot, folder)
+        assert (reload_schedule['stack'][:schedule['pretrain_from']] ==
+                schedule['stack'][:schedule['pretrain_from']]),\
+            'reload schedule must be identical with current one'
+        file_prefix = join(depot, folder, tag)
+        params = load_params(file_prefix + ".params")
+
+        train = self.train_data
+        valid = self.valid_data
+
+        assert (valid is not None) == ("valid" in schedule["eval"]),\
+            "Confusion about validation set!"
+
+        for i, (layer, sched) in enumerate(
+                izip(self[:schedule["pretrain_from"]],
+                     self.stack[:schedule["pretrain_from"]])):
+            l = len(layer.p)
+            layer.pt_init(**sched)
+            pt_params = as_garray(params[i]['params'])
+            layer.p = pt_params[:l]
+
+            pp = {"layer": i, "type": str(layer)}
+            munk.taggify(self.logging, "pretty").send(pp)
+            log = munk.add_keyvalue(self.logging, "layer", i)
+            epochs = schedule["opt"]["epochs"]
+            if epochs > 0:
+                pass
+            else:
+                pp = {"msg": "NO PRETRAINING of layer %i"%i}
+                munk.taggify(self.logging, "pretty").send(pp)
+            info = layer.pt_done(pt_params, **sched)
+            pt_params = None
+            log.send(info)
+
+            # move data forward, save in temporary hdf5
+            if i < (len(self) - 1):
+                nxt_name = (strftime("%Y-%m-%d-%H:%M:%S") + "_L"
+                            + str(i+1) + "_TMP.h5")
+                nxt = h5py.File(nxt_name)
+                pp = {"msg": "Take care of temporary " + nxt_name}
+                munk.taggify(self.logging, "pretty").send(pp)
+                # if a validation set is available, move it forward, too.
+                if valid:
+                    self.valid_data[0] = (self.next_hdf5(
+                        layer, self.valid_data[0], "validation",
+                        nxt, chunk=512))
+                self.train_data[0] = (self.next_hdf5(
+                    layer, self.train_data[0], "train", nxt, chunk=512))

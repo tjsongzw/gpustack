@@ -283,13 +283,16 @@ def load_params(fname):
     return d
 
 
-def load_sched(depot, folder, tag):
+def load_sched(depot, folder):
     """
     depot, abs path
     """
     import cPickle
-    from os.path import join
-    fname = join(depot, folder, tag + '.schedule')
+    import os
+    import fnmatch
+    fdir = os.path.join(depot, folder)
+    l_fname = fnmatch.filter(os.listdir(fdir), '*.schedule')
+    fname = os.path.join(depot, folder, ''.join(l_fname))
     sched_f = open(fname)
     sched = cPickle.load(sched_f)
     sched_f.close()
@@ -384,3 +387,5 @@ def mask(factors, stride, size):
             conv[:, idx] = np.dot(_col.T, _row).ravel()
             msk[:, idx] = conv[:, idx] > 0 
     return msk, conv
+
+
