@@ -70,7 +70,7 @@ class Stack(list):
         # start the pretrain from a certain layer
         # be careful! default starting from layer index 0!
         if "pretrain_from" in schedule:
-            assert (not (schedule["pretrain_from"] and not schedule["reload"])), (
+            assert (bool(schedule["pretrain_from"]) == bool(schedule["reload"])), (
                 "Confusion about pretrain_from and reload! No RELOAD and NOT pretrain from First layer")
             if schedule["pretrain_from"] >= len(self.stack):
                 pp = {"msg": "NO PRETRAINING of whole stack, RELOAD some PARAMS!?"}
@@ -269,8 +269,8 @@ class Stack(list):
         assert (reload_schedule['stack'][:schedule['pretrain_from']] ==
                 schedule['stack'][:schedule['pretrain_from']]),\
             'reload schedule must be identical with current one'
-        file_prefix = join(depot, folder, tag)
-        params = load_params(file_prefix + ".params")
+        fname = join(depot, folder, tag + ".params")
+        params = load_params(fname)
 
         train = self.train_data
         valid = self.valid_data
@@ -291,6 +291,8 @@ class Stack(list):
             log = munk.add_keyvalue(self.logging, "layer", i)
             epochs = schedule["opt"]["epochs"]
             if epochs > 0:
+                pp = {"msg": "RELOAD PARAMS from {}".format(fname)}
+                munk.taggify(self.logging, "pretty").send(pp)
                 pass
             else:
                 pp = {"msg": "NO PRETRAINING of layer %i"%i}
