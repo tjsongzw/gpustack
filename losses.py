@@ -246,11 +246,12 @@ def _mia(z, targets, predict=False, error=False, addon=0):
     bern = misc._logistic(z)
     if predict:
         return bern
+    n, _ = bern.shape
     # loss is binary cross entropy
     # for every output variable
     bce =  -( targets*np.log(bern) + (1-targets)*np.log(1-bern) ).sum()
     if error:
-        return bce + addon, z-targets
+        return bce + addon,  (bern - targets)/n
     else:
         return bce + addon
 
@@ -263,11 +264,11 @@ def _xe(z, targets, predict=False, error=False, addon=0):
 
     _xe = z - _logsumexp(z, axis=1)
     n, _ = _xe.shape
-    xe = -np.sum(_xe[np.arange(n), targets])
+    xe = -np.mean(_xe[np.arange(n), targets])
     if error:
         err = np.exp(_xe)
         err[np.arange(n), targets] -= 1
-        return xe + addon, err
+        return xe + addon, err/n
     else:
         return xe + addon
 

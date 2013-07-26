@@ -266,9 +266,13 @@ class Stack(list):
         folder = schedule['config_reload']['folder']
         tag = schedule['config_reload']['tag']
         reload_schedule = load_sched(depot, folder)
-        assert (reload_schedule['stack'][:schedule['pretrain_from']] ==
-                schedule['stack'][:schedule['pretrain_from']]),\
-            'reload schedule must be identical with current one'
+        rs = reload_schedule['stack'][:schedule['pretrain_from']]
+        s = schedule['stack'][:schedule['pretrain_from']]
+        for d in rs:
+            d['opt'].pop('momentum')
+        for d in s:
+            d['opt'].pop('momentum')
+        assert (rs == s), 'reload schedule must be identical with current one'
         fname = join(depot, folder, tag + ".params")
         params = load_params(fname)
 
