@@ -24,7 +24,7 @@ class RBM(Layer):
         rep = "RBM-%s-%s-%s-[sparsity--%s:%s]"%(vrep, hrep, self.shape, self.lmbd, self.rho)
         return rep
 
-    def pt_init(self, H=bernoulli, V=bernoulli, init_var=1e-2, init_bias=0., 
+    def pt_init(self, H=bernoulli, V=bernoulli, init_var=1e-2, init_bias=0.,
             rho=0.5, lmbd=0., l2=0., **kwargs):
         pt_params = gzeros(self.m_end + self.shape[1] + self.shape[0])
         if init_var is None:
@@ -38,7 +38,7 @@ class RBM(Layer):
         pt_params[self.m_end:] = init_bias
 
         self.H = H
-        self.V = V 
+        self.V = V
         self.activ = match_table[H]
 
         self.pt_score = self.reconstruction
@@ -90,7 +90,7 @@ class RBM(Layer):
         v2, _ = self.V(h_sampled, wm=wm.T, bias=params[-V:])
         h2, _ = self.H(v2, wm=wm, bias=params[m_end:-V])
 
-        # Note the negative sign: the gradient is 
+        # Note the negative sign: the gradient is
         # supposed to point into 'wrong' direction,
         # because the used optimizer likes to minimize.
         g[:m_end] = -gdot(inputs.T, h1).ravel()

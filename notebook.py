@@ -90,7 +90,7 @@ def pick_enable(elm):
         for k in keys:
             copy[k] = pick_enable(elm[k])
         return copy
-    
+
     if type(elm) is tuple:
         copy = []
         for e in elm:
@@ -119,7 +119,7 @@ def prepare(schedule, depot="depot") :
     lab = open(schedule["__lab__"])
     schedule["__lab__#"] = hashlib.sha1(lab.read()).hexdigest()
     # Note: Don't hash the config file. A config file
-    # can define several single experiments. A specific 
+    # can define several single experiments. A specific
     # experiment may come from two different config files.
     # Instead, hash the schedule.
     to_hash = dict_str(schedule)
@@ -136,7 +136,7 @@ def prepare(schedule, depot="depot") :
         print "[NOTEBOOK:prepare] Found already this hash:", folder
         print "[NOTEBOOK:prepare] _schedule_ will not be jsonified.\n"
     # get config and lab files
-    path = join(path, now) 
+    path = join(path, now)
     shutil.copy(schedule["__lab__"], path + ".lab")
     # even though we didn't hash the config file, it is good
     # to know, which config's gave rise to this experiment.
@@ -149,7 +149,7 @@ def reload(depot, folder, tag, layer):
     """
     """
     import utils
-    
+
     cwd = os.getcwd()
     path = join(depot, folder)
     os.chdir(path)

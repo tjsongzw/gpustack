@@ -157,8 +157,8 @@ finite_arg = {
 
 def logsumexp(array, axis=0):
     """
-    Compute log of (sum of exps) 
-    along _axis_ in _array_ in a 
+    Compute log of (sum of exps)
+    along _axis_ in _array_ in a
     stable way.
     """
     axis_max = gmax(array, axis)[:, gnewaxis]
@@ -188,9 +188,9 @@ def prepare_opt(opt_schedule, wrt, schedule, train, valid):
                 opt_schedule[n] = schedule[needed_args[n]]
         iargs.append(arg(**opt_schedule))
     iargs = izip(*iargs)
-    
+
     ikwargs = repeat({})
-    
+
     opt_schedule["train"] = train
     opt_schedule["valid"] = valid
     if "eval" not in opt_schedule:
@@ -299,6 +299,86 @@ def load_sched(depot, folder):
     return sched
 
 
+def reload_checker(schedule, mode, l=None):
+    '''
+    check the must-match schedule
+    mode, 'layer' or 'stack'
+    l,  which layer to check and load
+    return reloaded file name and parameters
+    '''
+    assert (mode == 'layer' or mode == 'stack'), \
+        'wrong mode selection in reloading'
+    from os.path import join
+    depot = schedule['config_reload']['depot']
+    folder = schedule['config_reload']['folder']
+    tag = schedule['config_reload']['tag']
+    reload_schedule = load_sched(depot, folder)
+    reload_epochs = 0
+    # for l in l_index:
+    #     rs = reload_schedule['stack'][l]
+    #     s = schedule['stack'][l]
+    #     reload_epochs = rs['opt']['epochs']
+    #     assert (rs['opt']['epochs'] <= s['opt']['epochs']), \
+    #         'epochs of reload schedule must not larger than current one'
+    #     rs['opt'].pop('epochs')
+    #     s['opt'].pop('epochs')
+    #     rs['opt'].pop('momentum')
+    #     s['opt'].pop('momentum')
+    #     assert (rs == s), \
+    #         'reload schedule must be identical with current one'
+    if mode == 'stack':
+        rs = reload_schedule
+        s = schedule
+    else:
+        rs = reload_schedule['stack'][l]
+        s = schedule['stack'][l]
+    reload_epochs = rs['opt']['epochs']
+    assert (rs['opt']['epochs'] <= s['opt']['epochs']), \
+        'epochs of reload schedule must not larger than current one'
+    rs['opt'].pop('epochs')
+    s['opt'].pop('epochs')
+    rs['opt'].pop('momentum')
+    s['opt'].pop('momentum')
+    # s_stop = s['opt']['stop']
+    # rs['opt'].pop('stop')
+    # s['opt'].pop('stop')
+    if mode == 'stack':
+        assert (rs['opt'] == s['opt']),'opt mis'
+        assert (rs['score'] == s['score']),'score mis'
+        # assert (rs['opt'] == s['opt'] and rs['stack'] == s['stack']
+        #         and rs['score'] == s['score']), \
+        'reload schedule must be identical with current one'
+    else:
+        assert (rs == s), \
+            'reload schedule must be identical with current one'
+
+    # if mode == 'stack':
+    #     schedule['opt']['stop'] = int(s_stop)
+    # else:
+    #     schedule['stack'][l]['opt']['stop'] = int(s_stop)
+
+    fname = join(depot, folder, tag + ".params")
+    params = load_params(fname)
+    return fname, params, reload_epochs
+
+def epoch_checker(schedule, epoch_index):
+    '''
+    check the epoch match in previous run
+    epoch_index, index of current index in stack(l1, l2...or stack)
+    e.g., if epoch_index == stack, than all the epochs in pretraining must be identical
+    '''
+    depot = schedule['config_reload']['depot']
+    folder = schedule['config_reload']['folder']
+    tag = schedule['config_reload']['tag']
+    reload_schedule = load_sched(depot, folder)
+    rs = reload_schedule['stack'][:epoch_index]
+    s = schedule['stack'][:epoch_index]
+    for i in range(epoch_index):
+        assert (rs[i]['opt']['epochs'] == s[i]['opt']['epochs']), \
+            'epochs must match in previous run!'
+    return 0
+
+
 def log_queue(log_to=None):
     if log_to:
         # standard logfile
@@ -376,16 +456,14 @@ def mask(factors, stride, size):
     _s = size/2
     print "Mask size:", msk.shape
     col = np.zeros((1, fsqr))
-    col[0, 0:size] = binomial(size) 
+    col[0, 0:size] = binomial(size)
     row = np.zeros((1, fsqr))
-    row[0, 0:size] = binomial(size) 
+    row[0, 0:size] = binomial(size)
     for j in xrange(0, fsqr, stride):
         for i in xrange(0, fsqr, stride):
             _row = np.roll(row, j-_s)
             _col = np.roll(col, i-_s)
             idx = (j*hsqr + i)/stride
             conv[:, idx] = np.dot(_col.T, _row).ravel()
-            msk[:, idx] = conv[:, idx] > 0 
+            msk[:, idx] = conv[:, idx] > 0
     return msk, conv
-
-

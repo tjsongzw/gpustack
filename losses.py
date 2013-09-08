@@ -55,7 +55,7 @@ def rmssd(z, targets, predict=False, error=False, addon=0):
         # rec. error + first deriv
         return gpu.sum(per_sample)/n + addon, err/(n*per_sample[:, gpu.newaxis])
     else:
-        # only return reconstruction error 
+        # only return reconstruction error
         return gpu.sum(per_sample)/n + addon
 
 
@@ -65,7 +65,7 @@ def mia(z, targets, predict=False, error=False, addon=0, tiny=1e-10):
     binary cross entropy errors).
 
     Feed model output _z_ through logistic to get
-    bernoulli distributed variables. 
+    bernoulli distributed variables.
     """
     bern = gpu.logistic(z)
     if predict:
@@ -73,7 +73,8 @@ def mia(z, targets, predict=False, error=False, addon=0, tiny=1e-10):
     n, _ = bern.shape
     # loss is binary cross entropy
     # for every output variable
-    bce =  -( targets*(bern+tiny).log() + (1-targets)*(1-bern+tiny).log() ).sum()
+    # total error, mean error should divided by total(Not batch size ! Total) number of samples at 'THE END'
+    bce =  -gpu.sum(targets*(bern+tiny).log() + (1-targets)*(1-bern+tiny).log())
     if error:
         return bce + addon, (bern - targets)/n
     else:
@@ -89,7 +90,9 @@ def xe(z, targets, predict=False, error=False, addon=0):
 
     _xe = z - logsumexp(z, axis=1)
     n, _ = _xe.shape
-    xe = -gpu.mean(_xe[np.arange(n), targets])
+    # xe = -gpu.mean(_xe[np.arange(n), targets])
+    # total error, mean error should divided by total(Not batch size ! Total) number of samples at 'THE END'
+    xe = -gpu.sum(_xe[np.arange(n), targets])
     if error:
         err = gpu.exp(_xe)
         err[np.arange(n), targets] -= 1
@@ -236,7 +239,7 @@ def _ssd(z, targets, weight=0.5, predict=False, error=False, addon=0):
         # rec. error + first deriv
         return weight*np.sum(err**2) + addon, 2*weight*err
     else:
-        # only return reconstruction error 
+        # only return reconstruction error
         return weight*np.sum(err**2) + addon
 
 
