@@ -86,7 +86,7 @@ def xe(z, targets, predict=False, error=False, addon=0):
     Cross entropy error.
     """
     if predict:
-        return gpu.argmax(z, axis=1)
+        return z.argmax(axis=1)
 
     _xe = z - logsumexp(z, axis=1)
     n, _ = _xe.shape
@@ -170,8 +170,8 @@ def l2svm_x(z, targets, predict=False, error=False, addon=0):
     and targets are single numbers which indicate the class label
     """
     if predict:
-        # argmax(z)
-        return gpu.argmax(z, axis=1)
+        print 'gggggggg'
+        return z.argmax(axis=1)
 
     n, m = z.shape
     # _targets (1, -1)
@@ -197,7 +197,7 @@ def l1svm_x(z, targets, predict=False, error=False, addon=0):
     """
     if predict:
         # argmax(z)
-        return gpu.argmax(z, axis=1)
+        return z.argmax(axis=1)
 
     n, m = z.shape
     _targets = -1 * gpu.ones((n, m))

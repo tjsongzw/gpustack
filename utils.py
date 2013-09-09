@@ -327,18 +327,18 @@ def reload_checker(schedule, mode, l=None):
     #     assert (rs == s), \
     #         'reload schedule must be identical with current one'
     if mode == 'stack':
-        rs = reload_schedule
-        s = schedule
+        rs = reload_schedule.copy()
+        s = schedule.copy()
     else:
-        rs = reload_schedule['stack'][l]
-        s = schedule['stack'][l]
+        rs = reload_schedule['stack'][l].copy()
+        s = schedule['stack'][l].copy()
     reload_epochs = rs['opt']['epochs']
     assert (rs['opt']['epochs'] <= s['opt']['epochs']), \
         'epochs of reload schedule must not larger than current one'
     rs['opt'].pop('epochs')
     s['opt'].pop('epochs')
-    rs['opt'].pop('momentum')
-    s['opt'].pop('momentum')
+    # rs['opt'].pop('momentum')
+    # s['opt'].pop('momentum')
     # s_stop = s['opt']['stop']
     # rs['opt'].pop('stop')
     # s['opt'].pop('stop')
