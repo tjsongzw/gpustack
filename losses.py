@@ -170,7 +170,6 @@ def l2svm_x(z, targets, predict=False, error=False, addon=0):
     and targets are single numbers which indicate the class label
     """
     if predict:
-        print 'gggggggg'
         return z.argmax(axis=1)
 
     n, m = z.shape
@@ -267,7 +266,7 @@ def _xe(z, targets, predict=False, error=False, addon=0):
 
     _xe = z - _logsumexp(z, axis=1)
     n, _ = _xe.shape
-    xe = -np.mean(_xe[np.arange(n), targets])
+    xe = -np.sum(_xe[np.arange(n), targets])
     if error:
         err = np.exp(_xe)
         err[np.arange(n), targets] -= 1
