@@ -74,9 +74,16 @@ def mia(z, targets, predict=False, error=False, addon=0, tiny=1e-10):
     # loss is binary cross entropy
     # for every output variable
     # total error, mean error should divided by total(Not batch size ! Total) number of samples at 'THE END'
-    bce =  -gpu.sum(targets*(bern+tiny).log() + (1-targets)*(1-bern+tiny).log())
+    positive = gpu.sum(targets, axis=0)
+    negative = n - positive
+    inv_ne_freq = float(n) / (negative + 1)
+    inv_po_freq = float(n) / (positive + 1)
+    class_weight = inv_po_freq * (targets == 1) + inv_ne_freq * (targets == 0)
+
+    bce = -gpu.sum(targets*(bern+tiny).log() + (1-targets)*(1-bern+tiny).log() * class_weight)
+
     if error:
-        return bce + addon, (bern - targets)/n
+        return bce + addon, ((bern - targets) * class_weight) / n
     else:
         return bce + addon
 
@@ -215,7 +222,7 @@ def l1svm_x(z, targets, predict=False, error=False, addon=0):
 def zero_one(z, targets):
     """
     """
-    return (z!=targets).sum()
+    return (z != targets).sum()
 
 
 def bKL(x, y):
@@ -251,9 +258,16 @@ def _mia(z, targets, predict=False, error=False, addon=0):
     n, _ = bern.shape
     # loss is binary cross entropy
     # for every output variable
-    bce =  -( targets*np.log(bern) + (1-targets)*np.log(1-bern) ).sum()
+
+    positive = np.sum(targets, axis=0)
+    negative = n - positive
+    inv_ne_freq = float(n) / (negative + 1)
+    inv_po_freq = float(n) / (positive + 1)
+    class_weight = inv_po_freq * (targets == 1) + inv_ne_freq * (targets == 0)
+
+    bce =  -np.sum((targets*np.log(bern) + (1-targets)*np.log(1-bern)) * class_weight)
     if error:
-        return bce + addon,  (bern - targets)/n
+        return bce + addon,  ((bern - targets) * class_weight) / n
     else:
         return bce + addon
 
