@@ -37,10 +37,10 @@ class SVMLayer(Layer):
         return self.Z
 
     def bprop(self, params, grad, delta):
-        # TODO: check next line, is it according 
+        # TODO: check next line, is it according
         # to formula in the paper? delta must be
         # defined correctly!!
-        # self.C necessary? in loss Function, there is no C        
+        # self.C necessary? in loss Function, there is no C
         dE_da = self.C * delta * diff_table[self.activ](self.Z)
         # gradient of the bias
         grad[self.m_end:] = dE_da.sum(axis=0)
@@ -50,25 +50,6 @@ class SVMLayer(Layer):
         delta = gdot(dE_da, params[:self.m_end].reshape(self.shape).T)
         del self.Z
         return delta
-
-    def pt_init(self, score=None, init_var=1e-2, init_bias=0., SI=15, **kwargs):
-        if init_var is None:
-            self.SI = SI
-            self.p[:self.m_end] = gpu.garray(init_SI(self.shape, sparsity=SI)).ravel()
-        else:
-            self.p[:self.m_end] = init_var * gpu.randn(self.m_end)
-        self.p[self.m_end:] = init_bias
-        self.score = score
-        return self.p 
-
-    def pt_done(self, pt_params, **kwargs):
-        """
-        Do nothing: Pretraining is already working
-        on 'real' parameters (see pt_init: self.p is used).
-        """
-        _params = pt_params.as_numpy_array().tolist()
-        info = {"params": _params, "shape": self.shape}
-        return info
 
     def pt_score(self, params, inputs, targets, l2=0, **kwargs):
         Z = self.activ(gpu.dot(inputs, params[:self.m_end].reshape(self.shape)) + params[self.m_end:])
@@ -88,11 +69,3 @@ class SVMLayer(Layer):
         # clean up
         del delta
         return g
-
-    def _fward(self, data):
-        if self.cpuify:
-            _params = self._params
-        else:
-            _params = self.p.as_numpy_array()
-        _a = np.dot(data, _params[:self.m_end].reshape(self.shape)) + _params[self.m_end:]
-        return cpu_table[self.activ](_a)

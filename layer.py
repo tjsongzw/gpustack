@@ -1,5 +1,5 @@
 """
-Building block for multi layered 
+Building block for multi layered
 acyclic computation graphs.
 """
 
@@ -116,7 +116,7 @@ class Layer(object):
             self.p[:self.m_end] = init_var * gpu.randn(self.m_end)
         self.p[self.m_end:] = init_bias
         self.score = score
-        return self.p 
+        return self.p
 
     def pt_done(self, pt_params, **kwargs):
         """
@@ -134,12 +134,9 @@ class Layer(object):
 
     def pt_grad(self, params, inputs, targets, l2=0, **kwargs):
         g = gzeros(params.shape)
-        
         Z = self.activ(gpu.dot(inputs, params[:self.m_end].reshape(self.shape)) + params[self.m_end:])
         _, delta = self.score(Z, targets, error=True)
-
         g[:self.m_end] = gdot(inputs.T, delta).ravel()
-        
         g[self.m_end:] = delta.sum(axis=0)
         # clean up
         del delta
