@@ -172,7 +172,7 @@ def _logsumexp(array, axis=0):
     return axis_max + np.log(np.sum(np.exp(array-axis_max), axis))[:, np.newaxis]
 
 
-def prepare_opt(opt_schedule, wrt, schedule, train, valid):
+def prepare_opt(opt_schedule, wrt, schedule, train, valid, test=None):
     # iargs, a generator passed to climin optimizer,
     # is build out of generators on the fly -- needs to know what
     # parameters those generators must be called with.
@@ -193,6 +193,8 @@ def prepare_opt(opt_schedule, wrt, schedule, train, valid):
 
     opt_schedule["train"] = train
     opt_schedule["valid"] = valid
+    if test is not None:
+        opt_schedule["test"] = test
     if "eval" not in opt_schedule:
         opt_schedule["eval"] = schedule["eval"]
 
@@ -283,100 +285,20 @@ def load_params(fname):
     return d
 
 
-def load_sched(depot, folder):
+def load_sched(depot, folder, tag):
     """
     depot, abs path
     """
     import cPickle
     import os
-    import fnmatch
-    fdir = os.path.join(depot, folder)
-    l_fname = fnmatch.filter(os.listdir(fdir), '*.schedule')
-    fname = os.path.join(depot, folder, ''.join(l_fname))
+    # import fnmatch
+    # fdir = os.path.join(depot, folder, tag)
+    # l_fname = fnmatch.filter(os.listdir(fdir), '*.schedule')
+    fname = os.path.join(depot, folder, tag + '.schedule')
     sched_f = open(fname)
     sched = cPickle.load(sched_f)
     sched_f.close()
     return sched
-
-
-def reload_checker(schedule, mode, l=None):
-    '''
-    check the must-match schedule
-    mode, 'layer' or 'stack'
-    l,  which layer to check and load
-    return reloaded file name and parameters
-    '''
-    assert (mode == 'layer' or mode == 'stack'), \
-        'wrong mode selection in reloading'
-    from os.path import join
-    depot = schedule['config_reload']['depot']
-    folder = schedule['config_reload']['folder']
-    tag = schedule['config_reload']['tag']
-    reload_schedule = load_sched(depot, folder)
-    reload_epochs = 0
-    # for l in l_index:
-    #     rs = reload_schedule['stack'][l]
-    #     s = schedule['stack'][l]
-    #     reload_epochs = rs['opt']['epochs']
-    #     assert (rs['opt']['epochs'] <= s['opt']['epochs']), \
-    #         'epochs of reload schedule must not larger than current one'
-    #     rs['opt'].pop('epochs')
-    #     s['opt'].pop('epochs')
-    #     rs['opt'].pop('momentum')
-    #     s['opt'].pop('momentum')
-    #     assert (rs == s), \
-    #         'reload schedule must be identical with current one'
-    if mode == 'stack':
-        rs = reload_schedule.copy()
-        s = schedule.copy()
-    else:
-        rs = reload_schedule['stack'][l].copy()
-        s = schedule['stack'][l].copy()
-    reload_epochs = rs['opt']['epochs']
-    assert (rs['opt']['epochs'] <= s['opt']['epochs']), \
-        'epochs of reload schedule must not larger than current one'
-    rs['opt'].pop('epochs')
-    s['opt'].pop('epochs')
-    # rs['opt'].pop('momentum')
-    # s['opt'].pop('momentum')
-    # s_stop = s['opt']['stop']
-    # rs['opt'].pop('stop')
-    # s['opt'].pop('stop')
-    if mode == 'stack':
-        assert (rs['opt'] == s['opt']),'opt mis'
-        assert (rs['score'] == s['score']),'score mis'
-        # assert (rs['opt'] == s['opt'] and rs['stack'] == s['stack']
-        #         and rs['score'] == s['score']), \
-        'reload schedule must be identical with current one'
-    else:
-        assert (rs == s), \
-            'reload schedule must be identical with current one'
-
-    # if mode == 'stack':
-    #     schedule['opt']['stop'] = int(s_stop)
-    # else:
-    #     schedule['stack'][l]['opt']['stop'] = int(s_stop)
-
-    fname = join(depot, folder, tag + ".params")
-    params = load_params(fname)
-    return fname, params, reload_epochs
-
-def epoch_checker(schedule, epoch_index):
-    '''
-    check the epoch match in previous run
-    epoch_index, index of current index in stack(l1, l2...or stack)
-    e.g., if epoch_index == stack, than all the epochs in pretraining must be identical
-    '''
-    depot = schedule['config_reload']['depot']
-    folder = schedule['config_reload']['folder']
-    tag = schedule['config_reload']['tag']
-    reload_schedule = load_sched(depot, folder)
-    rs = reload_schedule['stack'][:epoch_index]
-    s = schedule['stack'][:epoch_index]
-    for i in range(epoch_index):
-        assert (rs[i]['opt']['epochs'] == s[i]['opt']['epochs']), \
-            'epochs must match in previous run!'
-    return 0
 
 
 def log_queue(log_to=None):
@@ -467,3 +389,199 @@ def mask(factors, stride, size):
             conv[:, idx] = np.dot(_col.T, _row).ravel()
             msk[:, idx] = conv[:, idx] > 0
     return msk, conv
+
+
+def reload_checker(schedule, mode, l=None):
+    '''
+    check the must-match schedule
+    mode, 'layer' or 'stack'
+    l,  which layer to check and load
+    return reloaded file name and parameters
+    '''
+    assert (mode == 'layer' or mode == 'stack'), \
+        'wrong mode selection in reloading'
+    from os.path import join
+    depot = schedule['config_reload']['depot']
+    folder = schedule['config_reload']['folder']
+    tag = schedule['config_reload']['tag']
+    reload_schedule = load_sched(depot, folder, tag)
+    if mode == 'stack':
+        rs = reload_schedule.copy()
+        s = schedule.copy()
+    else:
+        rs = reload_schedule['stack'][l].copy()
+        s = schedule['stack'][l].copy()
+    reload_epochs = rs['opt']['epochs']
+    assert (rs['opt']['epochs'] <= s['opt']['epochs']), \
+        'epochs of reload schedule must not larger than current one'
+    rs['opt'].pop('epochs')
+    s['opt'].pop('epochs')
+    # print schedule['opt']['epochs']
+    # print reload_schedule['opt']['epochs']
+    # rs['opt'].pop('momentum')
+    # s['opt'].pop('momentum')
+    # s_stop = s['opt']['stop']
+    # rs['opt'].pop('stop')
+    # s['opt'].pop('stop')
+    if mode == 'stack':
+        assert (rs['opt'] == s['opt']),'opt mis'
+        assert (rs['score'] == s['score']),'score mis'
+        # assert (rs['opt'] == s['opt'] and rs['stack'] == s['stack']
+        #         and rs['score'] == s['score']), \
+        'reload schedule must be identical with current one'
+    else:
+        assert (rs == s), \
+            'reload schedule must be identical with current one'
+
+    # if mode == 'stack':
+    #     schedule['opt']['stop'] = int(s_stop)
+    # else:
+    #     schedule['stack'][l]['opt']['stop'] = int(s_stop)
+
+    fname = join(depot, folder, tag + ".params")
+    params = load_params(fname)
+    return fname, params, reload_epochs
+
+def epoch_checker(schedule, epoch_index):
+    '''
+    check the epoch match in previous run
+    epoch_index, index of current index in stack(l1, l2...or stack)
+    e.g., if epoch_index == stack, than all the epochs in pretraining must be identical
+    '''
+    depot = schedule['config_reload']['depot']
+    folder = schedule['config_reload']['folder']
+    tag = schedule['config_reload']['tag']
+    reload_schedule = load_sched(depot, folder, tag)
+    rs = reload_schedule['stack'][:epoch_index]
+    s = schedule['stack'][:epoch_index]
+    for i in range(epoch_index):
+        assert (rs[i]['opt']['epochs'] == s[i]['opt']['epochs']), \
+            'epochs must match in previous run!'
+    return 0
+
+
+def reload_info(schedule, mode, l=None):
+    '''
+    information of reloaded schedule
+    mode, 'layer' or 'stack'
+    l,  which layer to check and load
+    return reloaded file name and reload_epochs, reload_stop
+    '''
+    assert (mode == 'layer' or mode == 'stack'), \
+        'wrong mode selection in reloading'
+    from os.path import join
+    depot = schedule['config_reload']['depot']
+    folder = schedule['config_reload']['folder']
+    tag = schedule['config_reload']['tag']
+    reload_schedule = load_sched(depot, folder, tag)
+    if mode == 'stack':
+        rs = reload_schedule
+    else:
+        rs = reload_schedule['stack'][l]
+    reload_epochs = rs['opt']['epochs']
+    reload_stop = rs['opt']['stop']
+    fname = join(depot, folder, tag + ".log")
+    return fname, reload_epochs, reload_stop
+
+def reload_log(log, schedule, mode):
+    '''
+    reload the log file
+    '''
+    assert (mode == 'layer' or mode == 'stack'), \
+        'wrong mode selection in reloading'
+    line_num = 0
+    if mode == 'stack':
+        load_range = len(shedule['stack']) - 1
+    if mode == 'layer':
+        load_range = schedule["pretrain_before"]
+    for i in range(load_range):
+        fname, reload_epochs, reload_stop = reload_info(schedule, 'layer', i)
+        line_num += reload_epochs / reload_stop
+    if mode == 'stack':
+        fname, reload_epochs, reload_stop = reload_info(schedule, 'stack')
+        line_num += reload_epochs / reload_stop
+
+    load_log_write(log, schedule['config_reload']['log_to'],
+                   schedule['log_to'], line_num)
+    return fname
+
+
+def load_log_write(log, in_fname, out_fname, l):
+    """
+    l, line number
+    load the .log file
+    then write the file
+    """
+    import ast
+    c = 0
+    with open(in_fname, 'r') as in_f:
+        # with open(out_fname, 'w') as out_f:
+        for line in in_f:
+            if c < l:
+                line_dict = ast.literal_eval(line)
+                log.send(line_dict)
+                # out_f.write(line)
+            c += 1
+
+
+def plot_log(depot, folder, tag):
+    '''
+    visualize log file
+    n, total number of samples
+    '''
+    import os
+    import ast
+    import math as m
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    matplotlib.rcParams.update({'font.size': 8})
+
+
+    fname = os.path.join(depot, folder, tag + '.log')
+    image = os.path.join(depot, folder, tag + '.png')
+    data = []
+    layer = None
+    with open(fname, 'r') as f:
+        for line in f:
+            line_dict = ast.literal_eval(line)
+            n_layer = line_dict['layer']
+            if n_layer != layer:
+                data.append({})
+                data[-1].update({'layer': n_layer})
+                data[-1].update({'train': []})
+                data[-1].update({'valid': []})
+                data[-1].update({'gradient': []})
+            if type(line_dict['train'][0]) is not list:
+                data[-1]['train'].append(line_dict['train'][0])
+                data[-1]['valid'].append(line_dict['valid'][0])
+                data[-1]['gradient'].append(line_dict['gradient'])
+            else:
+                data[-1]['train'].append(line_dict['train'][0][0])
+                data[-1]['valid'].append(line_dict['valid'][0][0])
+                data[-1]['gradient'].append(line_dict['gradient'])
+            layer = n_layer
+    subplot_shape = (m.ceil(len(data)/2.), 2)
+    fig = plt.figure()
+    k = 1
+    for l in data:
+        f = fig.add_subplot(subplot_shape[0], subplot_shape[1], k)
+        f.set_ylabel('error')
+        f.set_xlabel('error')
+        f.set_title('{} layer'.format(l['layer']))
+        train_error = l['train']
+        valid_error = l['valid']
+        num = len(train_error)
+        f.plot(range(num), train_error, color='blue')
+        f.plot(range(num), valid_error, color='red')
+        k += 1
+
+    fig.savefig(image, dpi=160)
+    # fig.savefig(os.path.join(
+    #     image_dir, '{}-{}-{}-{}.png'.format(
+    #         layer, begin_, end_, n_feature)), format='png',
+    #         figsize=(8, 6), dpi=160, facecolor='w',
+    #         edgecolor='k')
+    plt.clf()
+    plt.close(fig)
+    return 0

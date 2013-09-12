@@ -23,7 +23,7 @@ from gnumpy import zeros as gzeros
 import gnumpy as gpu
 
 from losses import loss_table
-from utils import prepare_opt, replace_gnumpy_data, epoch_checker, reload_checker
+from utils import prepare_opt, replace_gnumpy_data, epoch_checker, reload_checker, reload_log
 import chopmunk as munk
 
 
@@ -56,7 +56,8 @@ class Stack(list):
                            else [schedule["train"][0], schedule["train"][1]])
         self.valid_data = (None if not schedule.get("valid")
                            else [schedule["valid"][0], schedule["valid"][1]])
-
+        self.test_data = (None if not schedule.get("test")
+                          else [schedule["test"][0], schedule["test"][1]])
     def __repr__(self):
         rep = "|".join([str(l) for l in self])
         return rep
@@ -75,8 +76,11 @@ class Stack(list):
 
         train = self.train_data
         valid = self.valid_data
+        test = self.test_data
         assert (valid is not None) == ("valid" in schedule["eval"]), (
             "Confusion about validation set!")
+        assert (test is not None) == ("test" in schedule["eval"]), (
+            "Confusion about test set!")
 
         # start the pretrain from a certain layer
         # be careful! default starting from layer index 0!
@@ -89,20 +93,26 @@ class Stack(list):
                 pp = {"msg": "pretrain_before OUT of the stack!"}
                 munk.taggify(self.logging, "pretty").send(pp)
                 return None
+
+            # reload the log file
+            fname = reload_log(self.logging, schedule, 'layer')
+            pp = {"msg": "RELOAD LOG from {}".format(fname)}
+            munk.taggify(self.logging, "pretty").send(pp)
         else:
             schedule.update({"pretrain_before": 0})
 
         for i, (layer, sched) in enumerate(izip(self, self.stack)):
             pt_params = layer.pt_init(**sched)
-
             pp = {"layer": i, "type": str(layer)}
             munk.taggify(self.logging, "pretty").send(pp)
             log = munk.add_keyvalue(self.logging, "layer", i)
-
             opt_schedule = sched["opt"]
             epochs = opt_schedule["epochs"]
             if i < schedule["pretrain_before"]:
+                del pt_params
+                pt_params = None
                 _, pt_params, reload_epochs = self.reload_one_layer(schedule, i)
+                print pt_params
                 epochs = epochs - reload_epochs
                 sched["opt"]["epochs"] = epochs
                 if epochs > 0:
@@ -114,13 +124,14 @@ class Stack(list):
                 opt_schedule["f"] = layer.pt_score
                 opt_schedule["fprime"] = layer.pt_grad
 
-                opt, evals, peeks = prepare_opt(opt_schedule, pt_params, schedule, train, valid)
+                opt, evals, peeks = prepare_opt(opt_schedule, pt_params, schedule, train, valid, test)
 
                 stop = opt_schedule["stop"]
                 for j, info in enumerate(opt):
                     if (j+1) % stop == 0:
                         for e in evals:
                             info[e] = evals[e](pt_params)
+                            print pt_params
                         info = replace_gnumpy_data(info)
                         log.send(info)
 
@@ -143,6 +154,9 @@ class Stack(list):
                 # if a validation set is available, move it forward, too.
                 if valid:
                     valid[0] = self.next_hdf5(layer, valid[0], "validation", nxt, chunk=512)
+                # if a test set is available, move it forward, too.
+                if test:
+                    test[0] = self.next_hdf5(layer, test[0], "test", nxt, chunk=512)
                 train[0] = self.next_hdf5(layer, train[0], "train", nxt, chunk=512)
 
     def train(self, schedule):
@@ -155,18 +169,28 @@ class Stack(list):
         train = self.train_data
         valid = (None if not schedule.get("valid")
                  else [schedule["valid"][0], schedule["valid"][1]])
-
+        test = (None if not schedule.get("test")
+                else [schedule["test"][0], schedule["test"][1]])
         assert (valid is not None) == ("valid" in schedule["eval"]), "Confusion about validation set!"
-
+        assert (test is not None) == ("test" in schedule["eval"]), "Confusion about test set!"
         opt_schedule = schedule["opt"]
 
         pp = {"type" : str(self)}
+
         munk.taggify(self.logging, "pretty").send(pp)
-        log = munk.add_keyvalue(self.logging, "layer", "Stack")
+
 
         epochs = opt_schedule["epochs"]
 
         if schedule["reload_train"]:
+
+
+            # reload the log file
+            fname = reload_log(self.logging, schedule, 'stack')
+            pp = {"msg": "RELOAD LOG from {}".format(fname)}
+            munk.taggify(self.logging, "pretty").send(pp)
+
+            # reload params
             _, self.params, reload_epochs = self.reload_stack(schedule)
             epochs = epochs - reload_epochs
             schedule["opt"]["epochs"] = epochs
@@ -174,6 +198,8 @@ class Stack(list):
                 true_epochs = int(epochs / schedule["opt"]["stop"])
                 pp = {"msg": "{} more TRAINING EPOCHS of the stack".format(true_epochs)}
                 munk.taggify(self.logging, "pretty").send(pp)
+
+        log = munk.add_keyvalue(self.logging, "layer", "Stack")
 
         if epochs > 0:
             opt_schedule["f"] = self.score
@@ -183,7 +209,7 @@ class Stack(list):
                 self._eval_score = opt_schedule["eval_score"]
                 opt_schedule["eval_score"] = self.evaluate_score
 
-            opt, evals, peeks = prepare_opt(opt_schedule, self.params, schedule, train, valid)
+            opt, evals, peeks = prepare_opt(opt_schedule, self.params, schedule, train, valid, test)
 
             stop = opt_schedule["stop"]
             if "peeks" in opt_schedule:
@@ -314,9 +340,12 @@ class Stack(list):
 
         train = self.train_data
         valid = self.valid_data
+        test = self.test_data
 
         assert (valid is not None) == ("valid" in schedule["eval"]),\
             "Confusion about validation set!"
+        assert (test is not None) == ("test" in schedule["eval"]),\
+            "Confusion about test set!"
 
         for i, (layer, sched) in enumerate(
                 izip(self[:schedule["pretrain_before"]],
@@ -352,6 +381,11 @@ class Stack(list):
                 if valid:
                     self.valid_data[0] = (self.next_hdf5(
                         layer, self.valid_data[0], "validation",
+                        nxt, chunk=512))
+                # if a test set is available, move it forward, too.
+                if test:
+                    self.test_data[0] = (self.next_hdf5(
+                        layer, self.test_data[0], "test",
                         nxt, chunk=512))
                 self.train_data[0] = (self.next_hdf5(
                     layer, self.train_data[0], "train", nxt, chunk=512))

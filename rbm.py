@@ -109,7 +109,7 @@ class RBM(Layer):
         else:
             self.rho_hat *= 0.9
             self.rho_hat += 0.1 * h1.mean(axis=0)
-        dKL_drho_hat = (self.rho - self.rho_hat)/(self.rho_hat*(1-self.rho_hat))
+        dKL_drho_hat = (self.rho - self.rho_hat)/(self.rho_hat * (1 - self.rho_hat) + 1e-10)
         h1_1mh1 = h1*(1 - h1)
         g[m_end:-V] -= self.lmbd/n * gsum(h1_1mh1, axis=0) * dKL_drho_hat
         g[:m_end] -= self.lmbd/n * (gdot(inputs.T, h1_1mh1) * dKL_drho_hat).ravel()
