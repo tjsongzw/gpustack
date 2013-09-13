@@ -491,7 +491,7 @@ def reload_log(log, schedule, mode):
         'wrong mode selection in reloading'
     line_num = 0
     if mode == 'stack':
-        load_range = len(shedule['stack']) - 1
+        load_range = len(schedule['stack']) - 1
     if mode == 'layer':
         load_range = schedule["pretrain_before"]
     for i in range(load_range):
@@ -501,12 +501,11 @@ def reload_log(log, schedule, mode):
         fname, reload_epochs, reload_stop = reload_info(schedule, 'stack')
         line_num += reload_epochs / reload_stop
 
-    load_log_write(log, schedule['config_reload']['log_to'],
-                   schedule['log_to'], line_num)
+    load_log_write(log, schedule['config_reload']['log_from'], line_num)
     return fname
 
 
-def load_log_write(log, in_fname, out_fname, l):
+def load_log_write(log, in_fname, l):
     """
     l, line number
     load the .log file
@@ -515,12 +514,10 @@ def load_log_write(log, in_fname, out_fname, l):
     import ast
     c = 0
     with open(in_fname, 'r') as in_f:
-        # with open(out_fname, 'w') as out_f:
         for line in in_f:
             if c < l:
                 line_dict = ast.literal_eval(line)
                 log.send(line_dict)
-                # out_f.write(line)
             c += 1
 
 
