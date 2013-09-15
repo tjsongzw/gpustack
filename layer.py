@@ -149,3 +149,10 @@ class Layer(object):
             _params = self.p.as_numpy_array()
         _a = np.dot(data, _params[:self.m_end].reshape(self.shape)) + _params[self.m_end:]
         return cpu_table[self.activ](_a)
+
+    def pt_copy(self, pt_params, **kwargs):
+        """
+        Do nothing: Pretraining is already working
+        on 'real' parameters (see pt_init: self.p is used).
+        """
+        return 0

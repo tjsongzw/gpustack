@@ -31,6 +31,7 @@ class Stack(list):
     def __init__(self, ind, schedule):
         gpu.seed_rand(seed=None)
         self.logging = schedule["logging"]
+        # self.performance = shedule["performance"]
         self.psize = 0
         cuts = [0]
         self.stack = schedule["stack"]
@@ -68,10 +69,13 @@ class Stack(list):
             "reload pretrain and reload_train mismatch"
 
         if schedule["reload_train"]:
-            for layer, sched in izip(self, self.stack):
+            for i, (layer, sched) in enumerate(izip(self, self.stack)):
+                log = munk.add_keyvalue(self.logging, "layer", i)
                 pt_params = layer.pt_init(**sched)
+                info = layer.pt_done(pt_params, **sched)
+                pt_params = None
+                log.send(info)
             pp = {"msg": "NO PRETRAINING NOW"}
-            munk.taggify(self.logging, "pretty").send(pp)
             return None
 
         train = self.train_data
@@ -86,6 +90,11 @@ class Stack(list):
         # be careful! default starting from layer index 0!
         if schedule["reload_pretrain"]:
             epoch_checker(schedule, schedule['pretrain_before'] - 1)
+            # reload the log file
+            fname = reload_log(self.logging, schedule, 'layer')
+            pp = {"msg": "RELOAD LOG from {}".format(fname)}
+            munk.taggify(self.logging, "pretty").send(pp)
+
         if "pretrain_before" in schedule:
             assert (bool(schedule["pretrain_before"]) == bool(schedule["reload_pretrain"])), (
                 "Confusion about pretrain_before and reload! No RELOAD and NOT pretrain from First layer")
@@ -93,11 +102,6 @@ class Stack(list):
                 pp = {"msg": "pretrain_before OUT of the stack!"}
                 munk.taggify(self.logging, "pretty").send(pp)
                 return None
-
-            # reload the log file
-            fname = reload_log(self.logging, schedule, 'layer')
-            pp = {"msg": "RELOAD LOG from {}".format(fname)}
-            munk.taggify(self.logging, "pretty").send(pp)
         else:
             schedule.update({"pretrain_before": 0})
 
@@ -106,13 +110,12 @@ class Stack(list):
             pp = {"layer": i, "type": str(layer)}
             munk.taggify(self.logging, "pretty").send(pp)
             log = munk.add_keyvalue(self.logging, "layer", i)
+            # performance = munk.add_keyvalue(self.performance, "layer", i)
             opt_schedule = sched["opt"]
             epochs = opt_schedule["epochs"]
+
             if i < schedule["pretrain_before"]:
-                del pt_params
-                pt_params = None
                 _, pt_params, reload_epochs = self.reload_one_layer(schedule, i)
-                print pt_params
                 epochs = epochs - reload_epochs
                 sched["opt"]["epochs"] = epochs
                 if epochs > 0:
@@ -131,7 +134,7 @@ class Stack(list):
                     if (j+1) % stop == 0:
                         for e in evals:
                             info[e] = evals[e](pt_params)
-                            print pt_params
+
                         info = replace_gnumpy_data(info)
                         log.send(info)
 
@@ -183,8 +186,6 @@ class Stack(list):
         epochs = opt_schedule["epochs"]
 
         if schedule["reload_train"]:
-
-
             # reload the log file
             fname = reload_log(self.logging, schedule, 'stack')
             pp = {"msg": "RELOAD LOG from {}".format(fname)}
@@ -192,6 +193,8 @@ class Stack(list):
 
             # reload params
             _, self.params, reload_epochs = self.reload_stack(schedule)
+            for layer, (c1, c2) in izip(self, izip(self.cuts[:-1], self.cuts[1:])):
+                layer.p = self.params[c1:c2]
             epochs = epochs - reload_epochs
             schedule["opt"]["epochs"] = epochs
             if epochs > 0:
@@ -238,7 +241,7 @@ class Stack(list):
                         munk.taggify(self.logging, "pretty").send(pp)
 
         else:
-            pp = {"msg": "NO FINETUNING of stack"}
+            pp = {"msg": "NO FINETUNING of stack Now"}
             munk.taggify(self.logging, "pretty").send(pp)
 
         _params = self.params.as_numpy_array().tolist()

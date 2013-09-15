@@ -115,3 +115,12 @@ class RBM(Layer):
         g[:m_end] -= self.lmbd/n * (gdot(inputs.T, h1_1mh1) * dKL_drho_hat).ravel()
 
         return g
+
+    def pt_copy(self, pt_params, **kwargs):
+        '''
+        copy the pretrain parameters back to layer
+        '''
+        self._bias = pt_params[-self.shape[0]:].copy()
+        self.p[:] = pt_params[:-self.shape[0]]
+
+        return 0

@@ -7,7 +7,7 @@ import numpy as np
 import random
 from itertools import izip, cycle, repeat, count
 import json
-
+import os
 
 from gnumpy import garray
 from gnumpy import max as gmax
@@ -290,7 +290,6 @@ def load_sched(depot, folder, tag):
     depot, abs path
     """
     import cPickle
-    import os
     # import fnmatch
     # fdir = os.path.join(depot, folder, tag)
     # l_fname = fnmatch.filter(os.listdir(fdir), '*.schedule')
@@ -500,20 +499,19 @@ def reload_log(log, schedule, mode):
     if mode == 'stack':
         fname, reload_epochs, reload_stop = reload_info(schedule, 'stack')
         line_num += reload_epochs / reload_stop
-
-    load_log_write(log, schedule['config_reload']['log_from'], line_num)
+    load_log_write(log, fname, line_num)
     return fname
 
 
-def load_log_write(log, in_fname, l):
+def load_log_write(log, fname, l):
     """
     l, line number
-    load the .log file
-    then write the file
+    load the .log file from 'fname'
+    then send to the consumer
     """
     import ast
     c = 0
-    with open(in_fname, 'r') as in_f:
+    with open(fname, 'r') as in_f:
         for line in in_f:
             if c < l:
                 line_dict = ast.literal_eval(line)
@@ -526,7 +524,6 @@ def plot_log(depot, folder, tag):
     visualize log file
     n, total number of samples
     '''
-    import os
     import ast
     import math as m
     import matplotlib
@@ -582,3 +579,30 @@ def plot_log(depot, folder, tag):
     plt.clf()
     plt.close(fig)
     return 0
+
+def perf_queue(log_to):
+    '''
+    performance queue
+    '''
+    # accuracy file
+    acc_log = munk.file_sink(log_to+".accuracy")
+    acc_log = munk.jsonify(acc_log)
+    acc_log = munk.timify(acc_log, tag="timestamp")
+    acc_log = munk.exclude(acc_log, "precision")
+    acc_log = munk.exclude(acc_log, "recall")
+
+    # precision file
+    prec_log = munk.file_sink(log_to+".precision")
+    prec_log = munk.jsonify(prec_log)
+    prec_log = munk.timify(prec_log, tag="timestamp")
+    prec_log = munk.exclude(prec_log, "recall")
+
+    # recall file
+    re_log = munk.file_sink(log_to+".recall")
+    re_log = munk.jsonify(re_log)
+    re_log = munk.timify(re_log, tag="timestamp")
+    re_log = munk.include(re_log, "recall")
+
+    log = munk.broadcast(*[acc_log, prec_log, re_log])
+
+    return log

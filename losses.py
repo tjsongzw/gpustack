@@ -109,8 +109,9 @@ def l2svm_mia(z, targets, predict=False, error=False, addon=0):
     """
     if predict:
         # argmax_t(z*t)
-        t = 2 * (z > 0) - 1
-        return t
+        # t = 2 * (z > 0) - 1
+        # return t
+        return gpu.tanh(z)
 
     _value = (1 - z * targets)
     maximum = (_value > 0) * _value
@@ -140,8 +141,9 @@ def l1svm_mia(z, targets, predict=False, error=False, addon=0):
     """
     if predict:
         # argmax_t(z*t)
-        t = 2 * (z > 0) - 1
-        return t
+        # t = 2 * (z > 0) - 1
+        # return t
+        return gpu.tanh(z)
 
     _value = (1 - z * targets)
     indicator = _value > 0
