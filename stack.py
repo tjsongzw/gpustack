@@ -72,6 +72,7 @@ class Stack(list):
             for i, (layer, sched) in enumerate(izip(self, self.stack)):
                 log = munk.add_keyvalue(self.logging, "layer", i)
                 pt_params = layer.pt_init(**sched)
+                pt_params, _ = self.reload_one_layer(schedule, i)
                 info = layer.pt_done(pt_params, **sched)
                 pt_params = None
                 log.send(info)
@@ -115,7 +116,7 @@ class Stack(list):
             epochs = opt_schedule["epochs"]
 
             if i < schedule["pretrain_before"]:
-                _, pt_params, reload_epochs = self.reload_one_layer(schedule, i)
+                pt_params, reload_epochs = self.reload_one_layer(schedule, i)
                 epochs = epochs - reload_epochs
                 sched["opt"]["epochs"] = epochs
                 if epochs > 0:
@@ -134,7 +135,6 @@ class Stack(list):
                     if (j+1) % stop == 0:
                         for e in evals:
                             info[e] = evals[e](pt_params)
-
                         info = replace_gnumpy_data(info)
                         log.send(info)
 
@@ -192,7 +192,7 @@ class Stack(list):
             munk.taggify(self.logging, "pretty").send(pp)
 
             # reload params
-            _, self.params, reload_epochs = self.reload_stack(schedule)
+            self.params, reload_epochs = self.reload_stack(schedule)
             for layer, (c1, c2) in izip(self, izip(self.cuts[:-1], self.cuts[1:])):
                 layer.p = self.params[c1:c2]
             epochs = epochs - reload_epochs
@@ -325,10 +325,10 @@ class Stack(list):
 
         fname, params, reload_epochs = reload_checker(schedule, 'stack')
         stack_params = params['Stack']['params']
-        pp = {"msg": "RELOAD PARAMS from {}".format(fname)}
+        pp = {"msg": "RELOAD STACK PARAMS from {}".format(fname)}
         munk.taggify(self.logging, "pretty").send(pp)
 
-        return fname, as_garray(stack_params), reload_epochs
+        return as_garray(stack_params), reload_epochs
 
     def reload_layers(self, schedule):
         """
@@ -406,8 +406,8 @@ class Stack(list):
         # (layer, sched) = izip(self[l], self.stack[l])
         # length = len(self[l].p)
         pt_params = params[l]['params']
-        pp = {"msg": "RELOAD PARAMS from {}".format(fname)}
+        pp = {"msg": "RELOAD LAYER {} PARAMS from {}".format(l, fname)}
         munk.taggify(self.logging, "pretty").send(pp)
 
         # return fname, as_garray(pt_params[:length]), reload_epochs
-        return fname, as_garray(pt_params), reload_epochs
+        return as_garray(pt_params), reload_epochs
