@@ -131,6 +131,28 @@ def Drelu(x):
     return 1*(x>0)
 
 
+def multinomial(data, wm, bias, n, sampling=False):
+    """
+    n, number of experiment, array-like,(1, btsz)
+    """
+    suff = (gpu.dot(data, wm) + bias)
+    if sampling:
+        tmp = gpu.exp(suff - suff.max(axis=1).reshape(data.shape[0], 1))
+        sum_ = tmp.sum(axis=1).reshape(data.shape[0], 1)
+        p = tmp/sum_ - 1e-6 #numerical problem
+        sample_cpu = np.zeros_like(suff)
+        for i in range(data.shape[0]):
+            # rnd = gpu.rand(int(n[i]), p.shape[1])
+            # am = (p[i]/rnd).argmax(axis=1)
+            # for j in am:
+            #     sample[i, j] += 1
+            sample_cpu[i, :] = np.random.multinomial(int(n[i]), p[i])
+        sample = gpu.as_garray(sample_cpu)
+    else:
+        sample = None
+    return suff, sample
+
+
 diff_table = {
         gpu.logistic: Dsigmoid
         ,gpu.tanh: Dtanh
