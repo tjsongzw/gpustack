@@ -116,18 +116,20 @@ def l2svm_mia(z, targets, predict=False, error=False, addon=0):
     _value = (1 - z * targets)
     maximum = (_value > 0) * _value
 
-    # diff C for unbalance dataset
-    # automatically adjust weights inversely proportional to class frequencies
-    n, _ = targets.shape
-    positive = gpu.sum((targets + 1.) / 2, axis=0)
-    negative = n - positive
-    inv_ne_freq = float(n) / (negative + 1)
-    inv_po_freq = float(n) / (positive + 1)
-    class_weight = inv_po_freq * (targets > 0) + inv_ne_freq * (targets < 0)
-    # binary hinge loss
-    bhl = gpu.sum(maximum ** 2 * class_weight)
+    # # diff C for unbalance dataset
+    # # automatically adjust weights inversely proportional to class frequencies
+    # n, _ = targets.shape
+    # positive = gpu.sum((targets + 1.) / 2, axis=0)
+    # negative = n - positive
+    # inv_ne_freq = float(n) / (negative + 1)
+    # inv_po_freq = float(n) / (positive + 1)
+    # class_weight = inv_po_freq * (targets > 0) + inv_ne_freq * (targets < 0)
+    # # binary hinge loss
+    # bhl = gpu.sum(maximum ** 2 * class_weight)
+    bhl = gpu.sum(maximum ** 2)
     if error:
-        err = -2 * targets * maximum * class_weight
+        # err = -2 * targets * maximum * class_weight
+        err = -2 * targets * maximum
         return bhl + addon, err
     else:
         return bhl + addon
@@ -148,17 +150,21 @@ def l1svm_mia(z, targets, predict=False, error=False, addon=0):
     _value = (1 - z * targets)
     indicator = _value > 0
     maximum = indicator * _value
-    # diff C for unbalance dataset
-    # automatically adjust weights inversely proportional to class frequencies
-    n, _ = targets.shape
-    positive = gpu.sum((targets + 1.) / 2, axis=0)
-    negative = n - positive
-    inv_ne_freq = float(n) / (negative + 1)
-    inv_po_freq = float(n) / (positive + 1)
-    class_weight = inv_po_freq * (targets > 0) + inv_ne_freq * (targets < 0)
-    bhl = gpu.sum(maximum * class_weight)
+
+    # # diff C for unbalance dataset
+    # # automatically adjust weights inversely proportional to class frequencies
+    # n, _ = targets.shape
+    # positive = gpu.sum((targets + 1.) / 2, axis=0)
+    # negative = n - positive
+    # inv_ne_freq = float(n) / (negative + 1)
+    # inv_po_freq = float(n) / (positive + 1)
+    # class_weight = inv_po_freq * (targets > 0) + inv_ne_freq * (targets < 0)
+    # bhl = gpu.sum(maximum * class_weight)
+    bhl = gpu.sum(maximum)
+
     if error:
-        err = -targets * indicator * class_weight
+        # err = -targets * indicator * class_weight
+        err = -targets * indicator
         return bhl + addon, err
     else:
         return bhl + addon
@@ -288,17 +294,19 @@ def _l2svm_mia(z, targets, predict=False, error=False, addon=0):
 
     maximum = np.maximum(1 - z * targets, 0)
 
-    # diff C for unbalance dataset
-    # automatically adjust weights inversely proportional to class frequencies
-    n, _ = targets.shape
-    positive = np.sum((targets + 1.) / 2, axis=0)
-    negative = n - positive
-    inv_ne_freq = float(n) / (negative + 1)
-    inv_po_freq = float(n) / (positive + 1)
-    class_weight = inv_po_freq * (targets > 0) + inv_ne_freq * (targets < 0)
-    bhl = np.sum(maximum ** 2 * class_weight)
+    # # diff C for unbalance dataset
+    # # automatically adjust weights inversely proportional to class frequencies
+    # n, _ = targets.shape
+    # positive = np.sum((targets + 1.) / 2, axis=0)
+    # negative = n - positive
+    # inv_ne_freq = float(n) / (negative + 1)
+    # inv_po_freq = float(n) / (positive + 1)
+    # class_weight = inv_po_freq * (targets > 0) + inv_ne_freq * (targets < 0)
+    # bhl = np.sum(maximum ** 2 * class_weight)
+    bhl = np.sum(maximum ** 2)
     if error:
-        err = -2 * targets * maximum * class_weight
+        # err = -2 * targets * maximum * class_weight
+        err = -2 * targets * maximum
         return bhl + addon, err
     else:
         return bhl + addon
@@ -316,17 +324,19 @@ def _l1svm_mia(z, targets, predict=False, error=False, addon=0):
     indicator = _value > 0
     maximum = indicator * _value
 
-    # diff C for unbalance dataset
-    # automatically adjust weights inversely proportional to class frequencies
-    n, _ = targets.shape
-    positive = np.sum((targets + 1.) / 2, axis=0)
-    negative = n - positive
-    inv_ne_freq = float(n) / (negative + 1)
-    inv_po_freq = float(n) / (positive + 1)
-    class_weight = inv_po_freq * (targets > 0) + inv_ne_freq * (targets < 0)
+    # # diff C for unbalance dataset
+    # # automatically adjust weights inversely proportional to class frequencies
+    # n, _ = targets.shape
+    # positive = np.sum((targets + 1.) / 2, axis=0)
+    # negative = n - positive
+    # inv_ne_freq = float(n) / (negative + 1)
+    # inv_po_freq = float(n) / (positive + 1)
+    # class_weight = inv_po_freq * (targets > 0) + inv_ne_freq * (targets < 0)
+    # bhl = np.sum(maximum * class_weight)
     bhl = np.sum(maximum * class_weight)
     if error:
-        err = -targets * indicator * class_weight
+        # err = -targets * indicator * class_weight
+        err = -targets * indicator
         return bhl + addon, err
     else:
         return bhl + addon

@@ -22,6 +22,8 @@ class RBM(Layer):
         hrep = str(self.H).split()[1]
         vrep = str(self.V).split()[1]
         rep = "RBM-%s-%s-%s-[sparsity--%s:%s]"%(vrep, hrep, self.shape, self.lmbd, self.rho)
+        if hasattr(self, 'dropout'):
+            rep += "-[dropout--%s]"%(self.dropout)
         return rep
 
     def pt_init(self, H=bernoulli, V=bernoulli, init_var=1e-2, init_bias=0.,

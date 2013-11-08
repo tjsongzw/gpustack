@@ -404,6 +404,9 @@ def reload_checker(schedule, mode, l=None):
     folder = schedule['config_reload']['folder']
     tag = schedule['config_reload']['tag']
     reload_schedule = load_sched(depot, folder, tag)
+    if 'data_file' in reload_schedule:
+        assert (schedule['data_file'] == reload_schedule['data_file']), \
+            'data file must be identical with current one'
     if mode == 'stack':
         rs = reload_schedule.copy()
         s = schedule.copy()
@@ -415,6 +418,19 @@ def reload_checker(schedule, mode, l=None):
         'epochs of reload schedule must not larger than current one'
     rs['opt'].pop('epochs')
     s['opt'].pop('epochs')
+    if 'block' in rs:
+        rs.pop('block')
+    if 'block' in s:
+        s.pop('block')
+    if 'rho' not in rs and 'rho' in s:
+        assert (s['rho'] == 0), 'rho option mismatch in reloading'
+        s.pop('rho')
+    if 'lmbd' not in rs and 'lmbd' in s:
+        assert (s['lmbd'] == 0), 'lmbd option mismatch in reloading'
+        s.pop('lmbd')
+    if 'dropout' not in rs and 'dropout' in s:
+        assert (s['dropout'] == None), 'dropout option mismatch in reloading'
+        s.pop('dropout')
     # print schedule['opt']['epochs']
     # print reload_schedule['opt']['epochs']
     # rs['opt'].pop('momentum')
@@ -422,6 +438,10 @@ def reload_checker(schedule, mode, l=None):
     # s_stop = s['opt']['stop']
     # rs['opt'].pop('stop')
     # s['opt'].pop('stop')
+    if 'auto_weight' not in rs and 'auto_weight' in s:
+        assert (r['auto_weight'] == False), 'auto weight option mismatch in reloading'
+    if 'class_weight' in s:
+        s.pop('class_weight')
     if mode == 'stack':
         assert (rs['opt'] == s['opt']),'opt mis'
         assert (rs['score'] == s['score']),'score mis'
@@ -429,6 +449,8 @@ def reload_checker(schedule, mode, l=None):
         #         and rs['score'] == s['score']), \
         'reload schedule must be identical with current one'
     else:
+        # print 'rs', rs
+        # print 's', s
         assert (rs == s), \
             'reload schedule must be identical with current one'
 

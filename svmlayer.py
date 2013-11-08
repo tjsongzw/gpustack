@@ -17,8 +17,9 @@ from layer import Layer
 
 
 class SVMLayer(Layer):
-    def __init__(self, shape, C, params=None, dropout=None, **kwargs):
-        super(SVMLayer, self).__init__(shape=shape, activ=idnty, params=params, dropout=dropout)
+    def __init__(self, shape, C, params=None, dropout=None, class_weight=None, **kwargs):
+        super(SVMLayer, self).__init__(shape=shape, activ=idnty, params=params,
+                                       dropout=dropout, class_weight=class_weight)
         self.C = C
 
     def __repr__(self):

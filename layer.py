@@ -5,8 +5,6 @@ acyclic computation graphs.
 
 
 import numpy as np
-
-
 from gnumpy import dot as gdot
 from gnumpy import zeros as gzeros
 import gnumpy as gpu
@@ -17,13 +15,18 @@ from utils import init_SI
 
 
 class Layer(object):
-    def __init__(self, shape, activ, params=None, dropout=None, **kwargs):
+    def __init__(self, shape, activ, params=None, dropout=None, class_weight=None, **kwargs):
         self.shape = shape
         self.m_end = shape[0] * shape[1]
         self.activ = activ
         self.p = params
         self.size = shape[0] * shape[1] + shape[1]
         self.cpuify = False
+        if class_weight is not None:
+            self.class_weight = gpu.as_garray(class_weight)
+        else:
+            self.class_weight = gpu.ones(shape[1])
+
         if dropout is not None and dropout > 0:
             assert(0 < dropout < 1), "Dropout needs to be in (0,1)."
             self.dropout = dropout
@@ -41,7 +44,10 @@ class Layer(object):
             _score = "no_score"
         else:
             _score = str(self.score).split()[1]
-        return "Layer-%s-%s-%s" % (_score, str_table[self.activ], self.shape)
+        rep = "Layer-%s-%s-%s" % (_score, str_table[self.activ], self.shape)
+        if hasattr(self, 'dropout'):
+            rep += "-[dropout--%s]"%(self.dropout)
+        return rep
 
     def fward(self, params, data):
         return self.activ(gdot(data, params[:self.m_end].reshape(self.shape))\
@@ -64,7 +70,7 @@ class Layer(object):
         return self.Z
 
     def bprop(self, params, grad, delta):
-        dE_da = delta * diff_table[self.activ](self.Z)
+        dE_da = self.class_weight * delta * diff_table[self.activ](self.Z)
         # gradient of the bias
         grad[self.m_end:] = dE_da.sum(axis=0)
         # gradient of the weights
@@ -83,7 +89,7 @@ class Layer(object):
 
     def bprop_dropout(self, params, grad, delta):
         delta *= self.drop
-        dE_da = delta * diff_table[self.activ](self.Z)
+        dE_da = self.class_weight * delta * diff_table[self.activ](self.Z)
         # gradient of the bias
         grad[self.m_end:] = dE_da.sum(axis=0)
         # gradient of the weights

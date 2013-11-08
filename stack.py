@@ -53,6 +53,12 @@ class Stack(list):
         else:
             print("You may have a problem: _score_ is NONE")
             self._score = None
+
+        # if len(schedule["train"]) == 1:
+        #     self.train_data = [schedule["train"][0]]
+        # else:
+        #     self.train_data = (None if not schedule.get("train")
+        #                        else [schedule["train"][0], schedule["train"][1]])
         self.train_data = (None if not schedule.get("train")
                            else [schedule["train"][0], schedule["train"][1]])
         self.valid_data = (None if not schedule.get("valid")
