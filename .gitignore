@@ -1,4 +1,2 @@
-depot/
-*.dispatch
-*.h5
 *.pyc
+*.bak

@@ -71,7 +71,7 @@ class RBM(Layer):
         h1, h_sampled = self.H(inputs, wm=params[:self.m_end].reshape(self.shape), bias=params[self.m_end:-self.shape[0]], sampling=True)
         v2, _ = self.V(h_sampled, wm=params[:self.m_end].reshape(self.shape).T, bias=params[-self.shape[0]:])
 
-        rho_hat = h1.mean()
+        rho_hat = h1.mean(axis=1).sum()
         rec = ((inputs - v2)**2).sum()
 
         return np.array([rec, rho_hat])

@@ -628,3 +628,76 @@ def perf_queue(log_to):
     log = munk.broadcast(*[acc_log, prec_log, re_log])
 
     return log
+
+
+def visualize_filter(depot, folder, tag, layer, dim, shape_r=None, xtiles=None,
+                     fill=0, unblock=None, xs=None, block=None):
+    '''
+    _layer_ index, start from 0, end with 'Stack' if needed
+    _dim_, the input dimension
+    _dim_ must be a square number
+    if _shape_r is None.
+    Specifiy the number of rows with _xtiles_.
+    If not specified, the layout is approximately
+    square. _fill_ defines the pixel border between
+    patches (default is black (==0)).
+    '''
+    from os.path import join
+    from helpers import helpers
+    im_dir = join(depot, folder, tag + '.plot')
+    if not os.path.isdir(im_dir):
+        os.makedirs(im_dir)
+
+    params = load_params(join(depot, folder, tag + '.params'))
+
+    g = lambda x : isinstance(x, int)
+    l = filter(g, params.keys())
+    max_layer = max(l)
+
+    filters = np.eye(dim)
+    if g(layer):
+        im_f = join(im_dir, 'layer_{}'.format(layer))
+        for i in range(layer + 1):
+            shape = params[i]['shape']
+            m_end = shape[0] * shape[1]
+            filters = np.dot(filters, params[i]['params'][:m_end].reshape(shape))
+        im_f += '_unit_{}_filter.png'.format(filters.shape[1])
+    if layer is 'Stack':
+        im_f = join(im_dir, 'stack')
+        current_index = 0
+        for i in range(max_layer + 1):
+            shape = params[i]['shape']
+            m_end = shape[0] * shape[1]
+            l = m_end + shape[1]
+            filters = np.dot(filters, params['Stack']['params'][current_index:current_index+m_end].reshape(shape))
+            current_index += l
+        im_f += '_unit_{}_filter.png'.format(filters.shape[1])
+    if layer is 'fine_tuning':
+        current_index = 0
+        for i in range(max_layer + 1):
+            im_f = join(im_dir, 'ft_layer_{}'.format(i))
+            shape = params[i]['shape']
+            m_end = shape[0] * shape[1]
+            l = m_end + shape[1]
+            filters = np.dot(filters, params['Stack']['params'][current_index:current_index+m_end].reshape(shape))
+            im_f += '_unit_{}_filter.png'.format(filters.shape[1])
+            current_index += l
+            pl_filters = filters.T
+            if unblock:
+                pl_filters = helpers._batch_unblock_view(pl_filters, xs, block)
+            im = helpers.visualize(pl_filters.reshape(-1), dim, shape_r=shape_r, xtiles=xtiles, fill=fill)
+            im.save(im_f)
+        return None
+    if layer is 'all':
+        layer_list = range(max_layer + 1)
+        layer_list.extend(['Stack','fine_tuning'])
+        print layer_list
+        for ll in layer_list:
+            print 'plotting', ll, 'filter'
+            visualize_filter(depot, folder, tag, ll, dim, shape_r, xtiles, fill, unblock, xs, block)
+        return None
+    filters = filters.T
+    if unblock:
+        filters = helpers._batch_unblock_view(filters, xs, block)
+    im = helpers.visualize(filters.reshape(-1), dim, shape_r=shape_r, xtiles=xtiles, fill=fill)
+    im.save(im_f)
