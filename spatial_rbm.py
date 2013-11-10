@@ -23,10 +23,14 @@ class SPATIAL_RBM(RBM):
         hrep = str(self.H).split()[1]
         vrep = str(self.V).split()[1]
         rep = "Spatial-RBM-%s-%s-%s-[sparsity--%s:%s]-[block--%s-%s]"%(vrep, hrep, self.shape, self.lmbd, self.rho, self.block, self.block_shape)
+        if hasattr(self, 'drawin'):
+            rep += "-[drawin--%s]"%(self.drawin)
         return rep
 
-    def pt_init(self, block, H=bernoulli, V=bernoulli, init_var=1e-2, init_bias=0.,
-            rho=0.5, lmbd=0., l2=0., **kwargs):
+
+    def pt_init(self, block, drawin=None, H=bernoulli, V=bernoulli,
+                init_var=1e-2, init_bias=0., rho=0.5, lmbd=0.,
+                l2=0., **kwargs):
         pt_params = gzeros(self.m_end + self.shape[1] + self.shape[0])
         if init_var is None:
             init_heur = 4*np.sqrt(6./(self.shape[0]+self.shape[1]))
@@ -57,13 +61,26 @@ class SPATIAL_RBM(RBM):
             _mask[i*self.block_shape[0]:(i+1)*self.block_shape[0],
                  i*self.block_shape[1]:(i+1)*self.block_shape[1]] = 1
         self.mask = _mask.ravel()
-        pt_params[:self.m_end] *= self.mask
+        self.mask_stable = _mask.ravel().copy()
+        if drawin is not None and drawin > 0:
+            assert(0 < drawin < 1), "drawin needs to be in (0,1)."
+            self.drawin = drawin
+        if drawin is None:
+            pt_params[:self.m_end] *= self.mask_stable
 
         return pt_params
+
 
     def grad_cd1(self, params, inputs, **kwargs):
         """
         """
+        if hasattr(self, 'drawin'):
+            self.mask = self.mask_stable.copy()
+            draw = (gpu.rand(self.shape) < self.drawin).ravel()
+            inverse_mask = -1. * (self.mask_stable - 1)
+            draw *= inverse_mask
+            self.mask += draw
+
         g = gzeros(params.shape)
 
         n, _ = inputs.shape
@@ -71,7 +88,8 @@ class SPATIAL_RBM(RBM):
         m_end = self.m_end
         V = self.shape[0]
         H = self.shape[1]
-        wm = params[:m_end].reshape(self.shape)
+        # wm = params[:m_end].reshape(self.shape)
+        wm = (params[:m_end]*self.mask).reshape(self.shape)
 
         h1, h_sampled = self.H(inputs, wm=wm, bias=params[m_end:-V], sampling=True)
         v2, _ = self.V(h_sampled, wm=wm.T, bias=params[-V:])
@@ -102,7 +120,9 @@ class SPATIAL_RBM(RBM):
         g[m_end:-V] -= self.lmbd/n * gsum(h1_1mh1, axis=0) * dKL_drho_hat
         g[:m_end] -= self.lmbd/n * (gdot(inputs.T, h1_1mh1) * dKL_drho_hat).ravel()
 
-        #spatial rbm parameter
+
+        # #spatial rbm parameter
+        # g[:m_end] *= self.mask
         wm_block = gzeros(self.block_shape)
 
         wm_unravel = g[:m_end].reshape(self.shape)
@@ -115,7 +135,7 @@ class SPATIAL_RBM(RBM):
 
         wm_block *= 1./self.block
 
-        wm_unravel = gzeros(self.shape)
+        wm_unravel *= self.mask.reshape(self.shape)
 
         for i in xrange(self.block):
             wm_unravel[i*self.block_shape[0]:(i+1)*self.block_shape[0],
@@ -128,12 +148,17 @@ class SPATIAL_RBM(RBM):
         return g
 
 
-    # def fprop(self, params, data):
-    #     self.data = data
-    #     self.Z = self.activ(gdot(data, self.mask.reshape(self.shape)*\
-    #                              params[:self.m_end].reshape(self.shape))\
-    #                         + params[self.m_end:])
-    #     return self.Z
+    def fprop(self, params, data):
+        if hasattr(self, 'drawin'):
+            self.mask = self.mask_stable.copy()
+            draw = (gpu.rand(self.shape) < self.drawin).ravel()
+            inverse_mask = -1. * (self.mask_stable - 1)
+            draw *= inverse_mask
+            self.mask += draw
+
+        self.data = data
+        self.Z = self.activ(gdot(data, (params[:self.m_end]*self.mask).reshape(self.shape)) + params[self.m_end:])
+        return self.Z
 
 
     def bprop(self, params, grad, delta):
@@ -148,7 +173,6 @@ class SPATIAL_RBM(RBM):
         delta = gdot(dE_da, params[:self.m_end].reshape(self.shape).T)
         del self.Z
         return delta
-
 
     def bprop_dropout(self, params, grad, delta):
         delta *= self.drop
